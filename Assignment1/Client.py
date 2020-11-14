@@ -1,5 +1,5 @@
 from tkinter import *
-import tkinter.messagebox
+import tkinter.messagebox as tkMessageBox
 from PIL import Image, ImageTk
 import socket, threading, sys, traceback, os
 
@@ -152,102 +152,100 @@ class Client:
 			# Update RTSP sequence number.
 			# ...
 			self.rtspSeq += 1
-			
+
 			# Write the RTSP request to be sent.
 			# request = ...
-			request = 'SETUP ' + self.fileName + ' RTSP/1.0' + '\n' \
-						+ 'CSeq: ' + self.rtspSeq + '\n' \
-						+ 'Transport:  RTP/UDP; client_port= ' + self.rtpPort
+			request = "%s %s %s\nCSeq: %d\nTransport: %s; client_port= %d" % (
+				'SETUP', self.fileName, 'RTPS/1.0', self.rtspSeq, 'RTP/UDP', self.rtpPort
+			)
 
 			# Keep track of the sent request.
 			# self.requestSent = ...
 			self.requestSent = self.SETUP
-		
+
 		# Play request
 		elif requestCode == self.PLAY and self.state == self.READY:
 			# Update RTSP sequence number.
 			# ...
 			self.rtspSeq += 1
-			
+
 			# Write the RTSP request to be sent.
 			# request = ...
-			request = 'PLAY ' + self.fileName + ' RTSP/1.0' + '\n' \
-						+ 'CSeq: ' + self.rtspSeq + '\n' \
-						+ 'Session: ' + self.sessionId
-			
+			request = "%s %s %s\nCSeq: %d\nSession: %d" % (
+				"PLAY", self.fileName, 'RTPS/1.0', self.rtspSeq, self.sessionId
+			)
+
 			# Keep track of the sent request.
 			# self.requestSent = ...
 			self.requestSent = self.PLAY
-		
+
 		# Pause request
 		elif requestCode == self.PAUSE and self.state == self.PLAYING:
 			# Update RTSP sequence number.
 			# ...
 			self.rtspSeq += 1
-			
+
 			# Write the RTSP request to be sent.
 			# request = ...
-			request = 'PAUSE ' + self.fileName + ' RTSP/1.0' + '\n' \
-						+ 'CSeq: ' + self.rtspSeq + '\n' \
-						+ 'Session: ' + self.sessionId
-			
+			request = "%s %s %s\nCSeq: %d\nSession: %d" % (
+				"PAUSE", self.fileName, 'RTPS/1.0', self.rtspSeq, self.sessionId
+			)
 			# Keep track of the sent request.
 			# self.requestSent = ...
 			self.requestSent = self.PAUSE
-			
+
 		# Teardown request
 		elif requestCode == self.TEARDOWN and not self.state == self.INIT:
 			# Update RTSP sequence number.
 			# ...
 			self.rtspSeq += 1
-			
+
 			# Write the RTSP request to be sent.
 			# request = ...
-			request = 'TEARDOWN ' + self.fileName + ' RTSP/1.0' + '\n' \
-					  + 'CSeq: ' + self.rtspSeq + '\n' \
-					  + 'Session: ' + self.sessionId
-			
+			request = "%s %s %s\nCSeq: %d\nSession: %d" % (
+				'TEARDOWN', self.fileName, 'RTPS/1.0', self.rtspSeq, self.sessionId
+			)
 			# Keep track of the sent request.
 			# self.requestSent = ...
 			self.requestSent = self.TEARDOWN
 		else:
 			return
-		
+
 		# Send the RTSP request using rtspSocket.
 		# ...
-		self.rtspSocket.send(request)
-		
+		self.rtspSocket.send(request.encode("utf-8"))
+
 		print('\nData sent:\n' + request)
-	
+
 	def recvRtspReply(self):
 		"""Receive RTSP reply from the server."""
 		while True:
 			reply = self.rtspSocket.recv(1024)
-			
-			if reply: 
+
+			if reply:
 				self.parseRtspReply(reply.decode("utf-8"))
-			
+
 			# Close the RTSP socket upon requesting Teardown
 			if self.requestSent == self.TEARDOWN:
 				self.rtspSocket.shutdown(socket.SHUT_RDWR)
 				self.rtspSocket.close()
 				break
-	
+
 	def parseRtspReply(self, data):
 		"""Parse the RTSP reply from the server."""
 		lines = data.split('\n')
 		seqNum = int(lines[1].split(' ')[1])
-		
+
 		# Process only if the server reply's sequence number is the same as the request's
 		if seqNum == self.rtspSeq:
 			session = int(lines[2].split(' ')[1])
 			# New RTSP session ID
 			if self.sessionId == 0:
 				self.sessionId = session
-			
+
 			# Process only if the session ID is the same
 			if self.sessionId == session:
-				if int(lines[0].split(' ')[1]) == 200: 
+				if int(lines[0].split(' ')[1]) == 200:
 					if self.requestSent == self.SETUP:
 						#-------------
 						# TO COMPLETE
@@ -255,25 +253,25 @@ class Client:
 						# Update RTSP state.
 						# self.state = ...
 						self.state = self.READY
-						
+
 						# Open RTP port.
-						self.openRtpPort() 
+						self.openRtpPort()
 					elif self.requestSent == self.PLAY:
 						# self.state = ...
 						self.state = self.PLAYING
 					elif self.requestSent == self.PAUSE:
 						# self.state = ...
 						self.state = self.READY
-						
+
 						# The play thread exits. A new thread is created on resume.
 						self.playEvent.set()
 					elif self.requestSent == self.TEARDOWN:
 						# self.state = ...
 						self.state = self.INIT
-						
+
 						# Flag the teardownAcked to close the socket.
-						self.teardownAcked = 1 
-	
+						self.teardownAcked = 1
+
 	def openRtpPort(self):
 		"""Open RTP socket binded to a specified port."""
 		#-------------
@@ -282,11 +280,11 @@ class Client:
 		# Create a new datagram socket to receive RTP packets from the server
 		# self.rtpSocket = ...
 		self.rtpSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		
+
 		# Set the timeout value of the socket to 0.5sec
 		# ...
 		self.rtpSocket.settimeout(0.5)
-		
+
 		try:
 			# Bind the socket to the address using the RTP port given by the client user
 			# ...
