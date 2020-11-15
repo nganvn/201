@@ -2,6 +2,7 @@ from tkinter import *
 import tkinter.messagebox as tkMessageBox
 from PIL import Image, ImageTk
 import socket, threading, sys, traceback, os
+import sys
 
 from RtpPacket import RtpPacket
 
@@ -35,7 +36,9 @@ class Client:
 		self.connectToServer()
 		self.frameNbr = 0
 		self.totalPacket = 0
-		
+		self.packetLoss = 0
+		# self.setupMovie()
+
 	def createWidgets(self):
 		"""Build GUI."""
 		# Create Setup button
@@ -64,7 +67,7 @@ class Client:
 		
 		# Create a label to display the movie
 		self.label = Label(self.master, height=19)
-		self.label.grid(row=0, column=0, columnspan=4, sticky=W+E+N+S, padx=5, pady=5) 
+		self.label.grid(row=0, column=0, columnspan=4, sticky=W+E+N+S, padx=5, pady=5)
 	
 	def setupMovie(self):
 		"""Setup button handler."""
@@ -75,7 +78,10 @@ class Client:
 		"""Teardown button handler."""
 		self.sendRtspRequest(self.TEARDOWN)		
 		self.master.destroy() # Close the gui window
-		os.remove(CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT) # Delete the cache image from video
+		try:
+			os.remove(CACHE_FILE_NAME + str(self.sessionId) + CACHE_FILE_EXT) # Delete the cache image from video
+		except:
+			pass
 
 	def pauseMovie(self):
 		"""Pause button handler."""
@@ -103,11 +109,17 @@ class Client:
 					rtpPacket.decode(data)
 					
 					currFrameNbr = rtpPacket.seqNum()
-					print("Current Seq Num: " + str(currFrameNbr))
-					print("Packet loss rate: " + str(1-self.totalPacket/currFrameNbr))
+					sys.stdout.write('\r')
+					sys.stdout.write("Current Seq Num: %d - " % (currFrameNbr))
+					sys.stdout.write("Packet loss rate: %.2f" % (self.packetLoss/currFrameNbr))
+
+					# print("Current Seq Num: " + str(currFrameNbr))
+					# print("Packet loss rate: " + str(1-self.totalPacket/currFrameNbr))
 					if currFrameNbr > self.frameNbr: # Discard the late packet
 						self.frameNbr = currFrameNbr
 						self.updateMovie(self.writeFrame(rtpPacket.getPayload()))
+				else:
+					self.packetLoss+=1
 
 			except:
 				# Stop listening upon requesting PAUSE or TEARDOWN
@@ -237,6 +249,8 @@ class Client:
 
 	def parseRtspReply(self, data):
 		"""Parse the RTSP reply from the server."""
+		print('')
+		print(data)
 		lines = data.split('\n')
 		seqNum = int(lines[1].split(' ')[1])
 
