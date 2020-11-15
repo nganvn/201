@@ -34,6 +34,7 @@ class Client:
 		self.teardownAcked = 0
 		self.connectToServer()
 		self.frameNbr = 0
+		self.totalPacket = 0
 		
 	def createWidgets(self):
 		"""Build GUI."""
@@ -96,15 +97,18 @@ class Client:
 			try:
 				data = self.rtpSocket.recv(20480)
 				if data:
+					self.totalPacket += 1
+
 					rtpPacket = RtpPacket()
 					rtpPacket.decode(data)
 					
 					currFrameNbr = rtpPacket.seqNum()
 					print("Current Seq Num: " + str(currFrameNbr))
-										
+					print("Packet loss rate: " + str(1-self.totalPacket/currFrameNbr))
 					if currFrameNbr > self.frameNbr: # Discard the late packet
 						self.frameNbr = currFrameNbr
 						self.updateMovie(self.writeFrame(rtpPacket.getPayload()))
+
 			except:
 				# Stop listening upon requesting PAUSE or TEARDOWN
 				if self.playEvent.isSet(): 
